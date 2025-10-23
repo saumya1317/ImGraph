@@ -7,6 +7,8 @@ add_library(${NAME} STATIC
   Core/Application.cpp Core/Application.hpp Core/Window.cpp Core/Window.hpp
   Core/Resources.hpp Core/Resources.cpp
   Core/DPIHandler.hpp
+  Core/Expression.cpp Core/Expression.hpp
+  Core/PlottingHelpers.cpp Core/PlottingHelpers.hpp
         Core/funcs.hpp)
 
 # Define set of OS specific files to include
