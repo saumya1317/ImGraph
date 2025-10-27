@@ -31,6 +31,11 @@ class Application {
   void on_close();
 
  private:
+  struct Expression {
+    char text[1024];
+    float color[3];
+  };
+
   ExitStatus m_exit_status{ExitStatus::SUCCESS};
   std::unique_ptr<Window> m_window{nullptr};
 
@@ -39,6 +44,8 @@ class Application {
   bool m_show_some_panel{true};
   bool m_show_debug_panel{false};
   bool m_show_demo_panel{false};
+  
+  std::vector<Expression> m_expressions{{{"r = 1 + 0.5*cos(theta)"}, {0.25f, 0.5f, 0.78f}}};
 };
 
 }  // namespace App

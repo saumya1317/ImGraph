@@ -113,15 +113,42 @@ ExitStatus App::Application::run() {
       const ImVec2 base_pos = viewport->Pos;
       const ImVec2 base_size = viewport->Size;
 
-      static char function[1024] = "r = 1 + 0.5*cos(theta)";
       static float zoom = 100.0f;
 
-      // Left Pane (expression)
+      // Left Pane (expressions)
       {
         ImGui::SetNextWindowPos(base_pos);
         ImGui::SetNextWindowSize(ImVec2(base_size.x * 0.25f, base_size.y));
         ImGui::Begin("Left Pane", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
-        ImGui::InputTextMultiline("##search", function, sizeof(function), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4));
+        
+        // Loop through all expressions
+        for (size_t i = 0; i < m_expressions.size(); ++i) {
+          ImGui::PushID(i);
+          
+          // Color picker button
+          ImGui::ColorEdit3("##color", m_expressions[i].color, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+          ImGui::SameLine();
+          
+          // Expression input
+          ImGui::InputTextMultiline("##expr", m_expressions[i].text, sizeof(m_expressions[i].text), 
+                                   ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 2));
+          
+          ImGui::PopID();
+        }
+        
+        // Add expression button
+        if (ImGui::Button("+ Add Expression")) {
+          Expression new_expr;
+          new_expr.text[0] = '\0';
+          // Cycle through some nice colors
+          const float colors[][3] = {{0.25f, 0.5f, 0.78f}, {0.8f, 0.2f, 0.2f}, {0.2f, 0.8f, 0.2f}, {0.9f, 0.6f, 0.1f}};
+          int color_idx = m_expressions.size() % 4;
+          new_expr.color[0] = colors[color_idx][0];
+          new_expr.color[1] = colors[color_idx][1];
+          new_expr.color[2] = colors[color_idx][2];
+          m_expressions.push_back(new_expr);
+        }
+        
         ImGui::SliderFloat("Graph Scale", &zoom, 10.0f, 500.0f, "%.1f");
         ImGui::End();
       }
@@ -140,13 +167,22 @@ ExitStatus App::Application::run() {
         float lineThickness = 6.0f;
         draw_list->AddLine(ImVec2(canvas_p0.x, origin.y), ImVec2(canvas_p1.x, origin.y), IM_COL32(0, 0, 0, 255), lineThickness);
         draw_list->AddLine(ImVec2(origin.x, canvas_p0.y), ImVec2(origin.x, canvas_p1.y), IM_COL32(0, 0, 0, 255), lineThickness);
-        std::vector<ImVec2> points;
-
-        // (f(t), g(t))
-        std::string func_str(function);
         
-
-        bool plotted = false;
+        // Loop through all expressions and plot each
+        for (const auto& expr : m_expressions) {
+          std::string func_str(expr.text);
+          if (func_str.empty()) continue;
+          
+          std::vector<ImVec2> points;
+          bool plotted = false;
+          
+          // Convert color to ImU32
+          ImU32 line_color = IM_COL32(
+            static_cast<int>(expr.color[0] * 255),
+            static_cast<int>(expr.color[1] * 255),
+            static_cast<int>(expr.color[2] * 255),
+            255
+          );
 
         if (!func_str.empty() && func_str.front() == '(' && func_str.back() == ')') {
           const std::string inner = func_str.substr(1, func_str.size() - 2);
@@ -204,7 +240,7 @@ ExitStatus App::Application::run() {
               // Draw  curve
               draw_list->AddPolyline(points.data(),
                   points.size(),
-                  IM_COL32(64, 128, 199, 255),
+                  line_color,
                   ImDrawFlags_None,
                   lineThickness);
               plotted = true;
@@ -235,7 +271,6 @@ ExitStatus App::Application::run() {
             
             // adaptive step size with performance limit
             const double step = std::max(0.025, 1.5 / zoom);
-            const ImU32 inequality_color = IM_COL32(100, 150, 255, 180);
             const float dot_size = std::max(1.5f, zoom / 60.0f);
             
             
@@ -246,7 +281,7 @@ ExitStatus App::Application::run() {
                 if (expression.value() == 1.0) {
                   ImVec2 screen_pos(origin.x + static_cast<float>(x * zoom),
                                    origin.y - static_cast<float>(y * zoom));
-                  draw_list->AddCircleFilled(screen_pos, dot_size, inequality_color);
+                  draw_list->AddCircleFilled(screen_pos, dot_size, line_color);
                 }
               }
             }
@@ -316,7 +351,6 @@ ExitStatus App::Application::run() {
               const double y_max = canvas_sz.y / (2 * zoom);
               const double step = std::max(0.008, 1.0 / zoom); //dynamic step based on zoom level
               
-              const ImU32 implicit_color = IM_COL32(64, 199, 128, 255);
               const float dot_radius = 2.5f;
               
               // scan horizontally for sign changes
@@ -336,7 +370,7 @@ ExitStatus App::Application::run() {
                     // transform to screen coordinates and draw immediately
                     ImVec2 screen_pos(origin.x + static_cast<float>(x_zero * zoom),
                                      origin.y - static_cast<float>(y_zero * zoom));
-                    draw_list->AddCircleFilled(screen_pos, dot_radius, implicit_color);
+                    draw_list->AddCircleFilled(screen_pos, dot_radius, line_color);
                   }
                   
                   prev_val = curr_val;
@@ -360,7 +394,7 @@ ExitStatus App::Application::run() {
         
                     ImVec2 screen_pos(origin.x + static_cast<float>(x_zero * zoom),
                                      origin.y - static_cast<float>(y_zero * zoom));
-                    draw_list->AddCircleFilled(screen_pos, dot_radius, implicit_color);
+                    draw_list->AddCircleFilled(screen_pos, dot_radius, line_color);
                   }
                   
                   prev_val = curr_val;
@@ -375,7 +409,6 @@ ExitStatus App::Application::run() {
         }
 
         if (!plotted) {
-          std::string func_str(function);
           bool is_polar = func_str.find("r=") != std::string::npos || func_str.find("r =") != std::string::npos;
 
           if (is_polar) {
@@ -419,7 +452,7 @@ ExitStatus App::Application::run() {
 
               draw_list->AddPolyline(points.data(),
                   points.size(),
-                  IM_COL32(128, 64, 199, 255),
+                  line_color,
                   ImDrawFlags_None,
                   lineThickness);
             }
@@ -435,7 +468,7 @@ ExitStatus App::Application::run() {
             expression.register_symbol_table(symbolTable);
 
             exprtk::parser<double> parser;
-            parser.compile(function, expression);
+            parser.compile(expr.text, expression);
 
             for (x = -canvas_sz.x / (2 * zoom); x < canvas_sz.x / (2 * zoom); x += 0.05) {
               const double y = expression.value();
@@ -446,11 +479,12 @@ ExitStatus App::Application::run() {
 
             draw_list->AddPolyline(points.data(),
                 points.size(),
-                IM_COL32(199, 68, 64, 255),
+                line_color,
                 ImDrawFlags_None,
                 lineThickness);
           }
         }
+        } // end expression loop
 
         ImGui::End();
         ImGui::PopStyleColor();
